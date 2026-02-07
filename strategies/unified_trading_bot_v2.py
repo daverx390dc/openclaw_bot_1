@@ -217,8 +217,8 @@ async def init_exchange():
 async def load_historical_data():
     """Load recent historical data for initial indicators"""
     try:
-        since = int((datetime.utcnow() - timedelta(days=HISTORY_DAYS)).timestamp() * 1000)
-        print(f"Fetching historical data since {datetime.utcfromtimestamp(since/1000)} UTC...")
+        since = int((datetime.now(timezone.utc) - timedelta(days=HISTORY_DAYS)).timestamp() * 1000)
+        print(f"Fetching historical data since {datetime.fromtimestamp(since/1000, timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC...")
         ohlcv = []
         temp_since = since
         while temp_since < int(time.time() * 1000):
