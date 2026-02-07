@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Configuration
-BOT_SCRIPT = "strategies/unified_trading_bot.py"
+BOT_SCRIPT = "strategies/unified_trading_bot_v2.py"  # Using fixed version
 CHECK_INTERVAL = 60  # seconds between health checks
 MAX_RESTARTS_PER_HOUR = 5
 RESTART_COOLDOWN = 60  # seconds to wait before restart
