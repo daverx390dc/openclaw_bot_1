@@ -1,0 +1,11 @@
+{
+  "position_size_usdt": 500,
+  "leverage": 10,
+  "max_daily_loss_usdt": 100,
+  "max_drawdown_pct": 20,
+  "initial_sl_multiplier": 1.1,
+  "breakeven_trigger_r": 1.0,
+  "trailing_activate_at_r": 1.5,
+  "trailing_distance_multiplier": 1.8,
+  "max_positions": 1
+}

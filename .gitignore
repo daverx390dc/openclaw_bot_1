@@ -1,0 +1,37 @@
+# API Keys & Secrets
+config/api_keys.py
+*.key
+*.secret
+
+# Logs
+logs/
+*.log
+trade_log.txt
+
+# Data & State
+data/
+*.csv
+*.json
+!config/*.json
+!package.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

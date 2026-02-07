@@ -1,0 +1,19 @@
+{
+  "symbol": "ETH/USDT:USDT",
+  "timeframe": "3m",
+  "history_days": 3,
+  "min_candles_for_indicators": 100,
+  "indicators": {
+    "rsi_period": 14,
+    "bb_period": 20,
+    "bb_std_dev": 2,
+    "atr_period": 14,
+    "volume_sma_period": 20
+  },
+  "signal_thresholds": {
+    "volume_multiplier": 1.5,
+    "rsi_buy_threshold": 50,
+    "rsi_sell_threshold": 50
+  },
+  "testnet": true
+}
