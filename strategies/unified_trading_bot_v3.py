@@ -25,7 +25,7 @@ LEVERAGE = 30
 
 INITIAL_SL_MULT = 1.1
 BREAKEVEN_TRIGGER_R = 1.0
-TRAIL_ACTIVATE_AT_R = 1.5  # Start trailing at +1.5R (change to 2.5 for bigger winners)
+TRAIL_ACTIVATE_AT_R = 1.0  # Start trailing at +1.5R (change to 2.5 for bigger winners)
 TRAIL_DISTANCE_MULT = 1.8  # Fixed trail distance (will be made dynamic)
 
 # ═══ PROFIT MAXIMIZATION SETTINGS ═══
@@ -51,7 +51,7 @@ PARTIAL_EXIT_2_PCT = 0.30    # Close 30% more (30% remains)
 ENABLE_MOMENTUM_TRAILING = True      # Tighten trail when momentum slows
 MOMENTUM_LOOKBACK = 5                # Check momentum over last 5 candles
 MOMENTUM_SLOW_THRESHOLD = 0.3        # If momentum drops 70%, tighten trail
-MOMENTUM_TIGHT_MULT = 0.8            # Tighten trail to 0.8x ATR when slow
+MOMENTUM_TIGHT_MULT = 0.3            # Tighten trail to 0.8x ATR when slow
 
 MIN_CANDLES_FOR_IND = 100
 HISTORY_DAYS = 3
@@ -1044,7 +1044,7 @@ async def update_trailing_or_close(price: float, atr: float):
             
             if side == 'long':
                 new_sl = price - current_position['trail_distance']
-                if new_sl > current_position['sl_price'] + 0.3 * atr:
+                if new_sl > current_position['sl_price'] + 0.1 * atr:
                     current_position['sl_price'] = new_sl
                     momentum_tag = " [MOMENTUM]" if momentum_slow else ""
                     print(f"📈 Trailing SL moved to {new_sl:.2f} (dist: {current_position['trail_distance']:.2f}, +{r_profit:.2f}R){momentum_tag}")
