@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Configuration
-BOT_SCRIPT = "strategies/unified_trading_bot_v2.py"  # Using fixed version
+BOT_SCRIPT = "strategies/unified_trading_bot_v3.py"  # Using fixed version
 CHECK_INTERVAL = 60  # seconds between health checks
 MAX_RESTARTS_PER_HOUR = 5
 RESTART_COOLDOWN = 60  # seconds to wait before restart
@@ -87,11 +87,16 @@ class TradingAgent:
         
         try:
             self.log("🚀 Starting trading bot...")
+            # Use venv Python if available, otherwise system Python
+            venv_python = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv/bin/python3")
+            python_executable = venv_python if os.path.exists(venv_python) else sys.executable
+            
             self.process = await asyncio.create_subprocess_exec(
-                sys.executable, BOT_SCRIPT,
+                python_executable, "-u", BOT_SCRIPT,  # -u for unbuffered output
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
-                cwd=os.path.dirname(os.path.abspath(__file__))
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                env={**os.environ, 'PYTHONUNBUFFERED': '1'}  # Force unbuffered
             )
             
             self.restart_count += 1
