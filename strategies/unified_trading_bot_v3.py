@@ -205,47 +205,42 @@ def compute_indicators(df: pd.DataFrame):
 # SIGNAL DETECTION
 # ════════════════════════════════════════════════════════════════════════════
 def detect_signal(df: pd.DataFrame) -> Optional[str]:
-    """Enhanced signal detection with stronger filters"""
-    if len(df) < 30:  # Need more history
+    if len(df) < 30:
         return None
-
     if pd.isna(df['rsi'].iloc[-1]) or pd.isna(df['bb_middle'].iloc[-1]):
         return None
-
+    
     i = -1
     
     # ═══════════════════════════════════════════════════════════
-    # BUY SIGNAL
+    # SHARED CALCULATIONS (used by both BUY and SELL)
     # ═══════════════════════════════════════════════════════════
-    
-    # 1. RSI: Momentum building (not just > 50)
-    rsi_momentum = (
-        df['rsi'].iloc[i] > 50 and
-        df['rsi'].iloc[i] > df['rsi'].iloc[-2] and  # Rising
-        df['rsi'].iloc[-2] > df['rsi'].iloc[-3] and  # Sustained rise
-        df['rsi'].iloc[i] < 70  # Not overbought yet
-    )
-    
-    # 2. Price Action: Break above BB middle with momentum
-    price_action = (
-        df['close'].iloc[i] > df['bb_middle'].iloc[i] and  # Above midline
-        df['close'].iloc[-2] <= df['bb_middle'].iloc[-2] and  # Was below
-        df['close'].iloc[i] > df['open'].iloc[i]  # Bullish candle
-    )
-    
-    # 3. Trend Context: Confirm uptrend forming
-    higher_lows = df['low'].iloc[i] > df['low'].iloc[-3]
-    ema_slope = df['bb_middle'].iloc[i] > df['bb_middle'].iloc[-5]  # MA rising
-    
-    # 4. Volume: Strong conviction
     volume_surge = df['volume'].iloc[i] > df['volume_sma'].iloc[i] * 1.5
     
-    # 5. Volatility: Bands expanding (healthy move, not squeeze breakout)
     band_width = df['bb_upper'].iloc[i] - df['bb_lower'].iloc[i]
     prev_width = df['bb_upper'].iloc[-2] - df['bb_lower'].iloc[-2]
     expanding = band_width > prev_width * 1.1
     
-    if rsi_momentum and price_action and higher_lows and volume_surge and expanding:
+    # ═══════════════════════════════════════════════════════════
+    # BUY SIGNAL
+    # ═══════════════════════════════════════════════════════════
+    rsi_momentum = (
+        df['rsi'].iloc[i] > 50 and
+        df['rsi'].iloc[i] > df['rsi'].iloc[-2] and
+        df['rsi'].iloc[-2] > df['rsi'].iloc[-3] and
+        df['rsi'].iloc[i] < 70
+    )
+    
+    price_action = (
+        df['close'].iloc[i] > df['bb_middle'].iloc[i] and
+        df['close'].iloc[-2] <= df['bb_middle'].iloc[-2] and
+        df['close'].iloc[i] > df['open'].iloc[i]
+    )
+    
+    higher_lows = df['low'].iloc[i] > df['low'].iloc[-3]
+    ema_slope = df['bb_middle'].iloc[i] > df['bb_middle'].iloc[-5]
+    
+    if rsi_momentum and price_action and higher_lows and ema_slope and volume_surge and expanding:
         price = df['close'].iloc[i]
         atr_val = df['atr'].iloc[i]
         risk_pct = 1.1 * atr_val / price
@@ -257,11 +252,10 @@ def detect_signal(df: pd.DataFrame) -> Optional[str]:
         print(f"     SL: {sl:,.2f} | TP: {tp:,.2f} (1:3 R:R)")
         log_state(f"BUY: price={price:.2f}, RSI={df['rsi'].iloc[i]:.1f}, vol_ratio={df['volume'].iloc[i]/df['volume_sma'].iloc[i]:.2f}")
         return 'BUY'
-
-    # ═══════════════════════════════════════════════════════════
-    # SELL SIGNAL (mirror logic)
-    # ═══════════════════════════════════════════════════════════
     
+    # ═══════════════════════════════════════════════════════════
+    # SELL SIGNAL
+    # ═══════════════════════════════════════════════════════════
     rsi_momentum_down = (
         df['rsi'].iloc[i] < 50 and
         df['rsi'].iloc[i] < df['rsi'].iloc[-2] and
@@ -278,7 +272,8 @@ def detect_signal(df: pd.DataFrame) -> Optional[str]:
     lower_highs = df['high'].iloc[i] < df['high'].iloc[-3]
     ema_slope_down = df['bb_middle'].iloc[i] < df['bb_middle'].iloc[-5]
     
-    if rsi_momentum_down and price_action_down and lower_highs and volume_surge and expanding:
+    if rsi_momentum_down and price_action_down and lower_highs and ema_slope_down and volume_surge and expanding:
+        #                                                          ^^^^^^^^^^^^^^^^ ADDED THIS
         price = df['close'].iloc[i]
         atr_val = df['atr'].iloc[i]
         risk_pct = 1.1 * atr_val / price
@@ -287,12 +282,11 @@ def detect_signal(df: pd.DataFrame) -> Optional[str]:
         
         print(f"  🔴 STRONG SELL @ {price:,.2f} | {df['timestamp'].iloc[i]}")
         print(f"     RSI {df['rsi'].iloc[i]:.1f} (momentum) | Vol {df['volume'].iloc[i]/df['volume_sma'].iloc[i]:.1f}x")
-        print(f"     SL: {sl:,.2f} | TP: {tp:,.2f}")
+        print(f"     SL: {sl:,.2f} | TP: {tp::.2f}")
         log_state(f"SELL: price={price:.2f}, RSI={df['rsi'].iloc[i]:.1f}")
         return 'SELL'
-
+    
     return None
-
 
 # ════════════════════════════════════════════════════════════════════════════
 # EXCHANGE INITIALIZATION
