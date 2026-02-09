@@ -12,3 +12,4 @@ python3 agent.py
          ├── strategies/trailing_trade.py
          ├── ccxt (Binance API calls)
          └── logs/trades/trade_log.txt   (trade history)
+
