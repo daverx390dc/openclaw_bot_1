@@ -35,3 +35,8 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Misc
+*.bak
+*.tmp
+*.tar.gz
