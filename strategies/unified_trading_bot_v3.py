@@ -47,6 +47,12 @@ PARTIAL_EXIT_2_PCT = 0.30    # Close 30% more (30% remains)
 
 # After partial exits, trail remaining position with TRAIL_LOOSE distance
 
+# ═══ MOMENTUM-BASED TRAILING (ADVANCED) ═══
+ENABLE_MOMENTUM_TRAILING = True      # Tighten trail when momentum slows
+MOMENTUM_LOOKBACK = 5                # Check momentum over last 5 candles
+MOMENTUM_SLOW_THRESHOLD = 0.3        # If momentum drops 70%, tighten trail
+MOMENTUM_TIGHT_MULT = 0.8            # Tighten trail to 0.8x ATR when slow
+
 MIN_CANDLES_FOR_IND = 100
 HISTORY_DAYS = 3
 
@@ -763,6 +769,75 @@ async def place_entry(side: str, signal_price: float, atr: float):
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# MOMENTUM DETECTION
+# ════════════════════════════════════════════════════════════════════════════
+def detect_momentum_slowdown(df: pd.DataFrame, side: str, lookback: int = MOMENTUM_LOOKBACK) -> bool:
+    """
+    Detect if price momentum is slowing down (trend exhaustion)
+    Returns True if momentum has decreased significantly
+    """
+    if not ENABLE_MOMENTUM_TRAILING or len(df) < lookback + 5:
+        return False
+    
+    try:
+        # Calculate recent price changes (momentum)
+        recent_closes = df['close'].iloc[-lookback:].values
+        
+        # Average move per candle (recent)
+        recent_moves = []
+        for i in range(1, len(recent_closes)):
+            move = abs(recent_closes[i] - recent_closes[i-1])
+            recent_moves.append(move)
+        
+        recent_avg_move = np.mean(recent_moves) if recent_moves else 0
+        
+        # Compare to earlier momentum (5 candles before)
+        earlier_closes = df['close'].iloc[-lookback*2:-lookback].values
+        earlier_moves = []
+        for i in range(1, len(earlier_closes)):
+            move = abs(earlier_closes[i] - earlier_closes[i-1])
+            earlier_moves.append(move)
+        
+        earlier_avg_move = np.mean(earlier_moves) if earlier_moves else 0
+        
+        # Avoid division by zero
+        if earlier_avg_move == 0:
+            return False
+        
+        # Calculate momentum ratio (recent vs earlier)
+        momentum_ratio = recent_avg_move / earlier_avg_move
+        
+        # Momentum has slowed if ratio < threshold
+        is_slow = momentum_ratio < MOMENTUM_SLOW_THRESHOLD
+        
+        if is_slow:
+            log_state(f"Momentum slowdown detected: {momentum_ratio:.2f} (recent: {recent_avg_move:.2f}, earlier: {earlier_avg_move:.2f})")
+        
+        return is_slow
+        
+    except Exception as e:
+        log_state(f"Momentum detection error: {e}")
+        return False
+
+
+def calculate_price_velocity(df: pd.DataFrame, periods: int = 3) -> float:
+    """
+    Calculate how fast price is moving (dollars per candle)
+    Higher value = stronger momentum
+    """
+    if len(df) < periods + 1:
+        return 0.0
+    
+    try:
+        recent_prices = df['close'].iloc[-periods:].values
+        price_changes = np.diff(recent_prices)
+        avg_velocity = np.mean(np.abs(price_changes))
+        return float(avg_velocity)
+    except:
+        return 0.0
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # PROFIT MAXIMIZATION HELPERS
 # ════════════════════════════════════════════════════════════════════════════
 def get_dynamic_trail_distance(r_profit: float, atr: float, base_mult: float = TRAIL_DISTANCE_MULT) -> float:
@@ -939,7 +1014,7 @@ async def update_trailing_or_close(price: float, atr: float):
 
         # Trailing update
         if current_position['trailing_active']:
-            # ═══ DYNAMIC + VOLATILITY ADJUSTED TRAILING (NEW) ═══
+            # ═══ DYNAMIC + VOLATILITY ADJUSTED TRAILING ═══
             base_trail = get_dynamic_trail_distance(r_profit, atr)
             
             # Get average ATR for volatility adjustment
@@ -949,21 +1024,39 @@ async def update_trailing_or_close(price: float, atr: float):
                     avg_atr = price_df['atr'].iloc[-50:].mean()
             
             adjusted_trail = get_volatility_adjusted_trail(atr, avg_atr, base_trail)
+            
+            # ═══ MOMENTUM-BASED TIGHTENING (NEW) ═══
+            # If momentum is slowing, tighten the trail to catch the top/bottom
+            momentum_slow = False
+            if ENABLE_MOMENTUM_TRAILING and len(price_df) >= MOMENTUM_LOOKBACK + 5:
+                with df_lock:
+                    momentum_slow = detect_momentum_slowdown(price_df, side, MOMENTUM_LOOKBACK)
+                
+                if momentum_slow:
+                    # Tighten trail significantly when momentum dies
+                    momentum_trail = MOMENTUM_TIGHT_MULT * atr
+                    if momentum_trail < adjusted_trail:
+                        adjusted_trail = momentum_trail
+                        print(f"🎯 MOMENTUM SLOW - Trail tightened to {adjusted_trail:.2f}")
+                        log_state(f"Momentum tightening: trail={adjusted_trail:.2f}, r_profit={r_profit:.2f}")
+            
             current_position['trail_distance'] = adjusted_trail
             
             if side == 'long':
                 new_sl = price - current_position['trail_distance']
                 if new_sl > current_position['sl_price'] + 0.3 * atr:
                     current_position['sl_price'] = new_sl
-                    print(f"📈 Trailing SL moved to {new_sl:.2f} (dist: {current_position['trail_distance']:.2f}, +{r_profit:.2f}R)")
-                    log_state(f"Trailing update: SL={new_sl:.2f}, r_profit={r_profit:.2f}, trail_dist={current_position['trail_distance']:.2f}")
+                    momentum_tag = " [MOMENTUM]" if momentum_slow else ""
+                    print(f"📈 Trailing SL moved to {new_sl:.2f} (dist: {current_position['trail_distance']:.2f}, +{r_profit:.2f}R){momentum_tag}")
+                    log_state(f"Trailing update: SL={new_sl:.2f}, r_profit={r_profit:.2f}, trail_dist={current_position['trail_distance']:.2f}, momentum_slow={momentum_slow}")
                     updated = True
             else:
                 new_sl = price + current_position['trail_distance']
                 if new_sl < current_position['sl_price'] - 0.3 * atr:
                     current_position['sl_price'] = new_sl
-                    print(f"📉 Trailing SL moved to {new_sl:.2f} (dist: {current_position['trail_distance']:.2f}, +{r_profit:.2f}R)")
-                    log_state(f"Trailing update: SL={new_sl:.2f}, r_profit={r_profit:.2f}, trail_dist={current_position['trail_distance']:.2f}")
+                    momentum_tag = " [MOMENTUM]" if momentum_slow else ""
+                    print(f"📉 Trailing SL moved to {new_sl:.2f} (dist: {current_position['trail_distance']:.2f}, +{r_profit:.2f}R){momentum_tag}")
+                    log_state(f"Trailing update: SL={new_sl:.2f}, r_profit={r_profit:.2f}, trail_dist={current_position['trail_distance']:.2f}, momentum_slow={momentum_slow}")
                     updated = True
 
     # Update SL order only if changed
